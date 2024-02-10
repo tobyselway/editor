@@ -5,8 +5,8 @@ use sdl2::{
     event::Event,
     keyboard::Keycode,
     pixels::Color,
-    rect::Rect,
-    render::{Canvas, TextureCreator, TextureQuery},
+    rect::{Point, Rect},
+    render::{Canvas, TextureCreator},
     surface::Surface,
     ttf::Font,
     video::{Window, WindowContext},
@@ -75,7 +75,7 @@ fn run(tab: Tab, config: Config) -> Result<(), String> {
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
 
     let window = video_subsystem
-        .window("Editor", 600, 400)
+        .window("Editor", 800, 600)
         .opengl()
         .build()
         .map_err(|e| e.to_string())?;
@@ -87,33 +87,7 @@ fn run(tab: Tab, config: Config) -> Result<(), String> {
     let mut font = ttf_context.load_font(config.font_path, config.font_size)?;
     font.set_style(sdl2::ttf::FontStyle::NORMAL);
 
-    canvas.set_draw_color(Color::RGB(16, 16, 16));
-    canvas.clear();
-
-    for (line_n, line_txt) in tab
-        .contents
-        .replace('\t', " ".repeat(config.tab_size as usize).as_str())
-        .replace('\r', "")
-        .split('\n')
-        .enumerate()
-    {
-        if line_txt.len() > 0 {
-            let surface = text_to_surface(
-                &font,
-                &line_txt.to_string(),
-                Color::RGBA(255, 255, 255, 255),
-            )?;
-            render_surface(
-                &texture_creator,
-                &mut canvas,
-                surface,
-                0,
-                line_n as i32 * config.line_height,
-            )?;
-        }
-    }
-
-    canvas.present();
+    let mut cursor_x = 1;
 
     'mainloop: loop {
         for event in sdl_context.event_pump()?.poll_iter() {
@@ -123,12 +97,54 @@ fn run(tab: Tab, config: Config) -> Result<(), String> {
                     ..
                 }
                 | Event::Quit { .. } => break 'mainloop,
+                Event::KeyDown {
+                    keycode: Some(Keycode::Right),
+                    ..
+                } => cursor_x += 1,
+                Event::KeyDown {
+                    keycode: Some(Keycode::Left),
+                    ..
+                } => cursor_x -= 1,
                 _ => {}
             }
         }
 
-        // canvas.clear();
-        // canvas.present();
+        canvas.set_draw_color(Color::RGB(16, 16, 16));
+        canvas.clear();
+
+        for (line_n, line_txt) in tab
+            .contents
+            .replace('\t', " ".repeat(config.tab_size as usize).as_str())
+            .replace('\r', "")
+            .split('\n')
+            .enumerate()
+        {
+            if line_txt.len() > 0 {
+                let surface = text_to_surface(
+                    &font,
+                    &line_txt.to_string(),
+                    Color::RGBA(255, 255, 255, 255),
+                )?;
+                render_surface(
+                    &texture_creator,
+                    &mut canvas,
+                    surface,
+                    0,
+                    line_n as i32 * config.line_height,
+                )?;
+            }
+        }
+
+        let char_width = 10; // TODO: Figure out how to calculate this from font
+
+        canvas.set_draw_color(Color::RGBA(0, 0, 255, 255));
+        canvas.draw_line(
+            Point::new(cursor_x * char_width as i32 - 1, 0),
+            Point::new(cursor_x * char_width as i32 - 1, 0 + config.line_height),
+        )?;
+
+        canvas.present();
+
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 30));
     }
 
