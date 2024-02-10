@@ -1,7 +1,16 @@
 use std::{fs, time::Duration};
 
 use clap::Parser;
-use sdl2::{event::Event, keyboard::Keycode, pixels::Color, rect::Rect, render::{Canvas, TextureCreator, TextureQuery}, surface::Surface, ttf::Font, video::{Window, WindowContext}};
+use sdl2::{
+    event::Event,
+    keyboard::Keycode,
+    pixels::Color,
+    rect::Rect,
+    render::{Canvas, TextureCreator, TextureQuery},
+    surface::Surface,
+    ttf::Font,
+    video::{Window, WindowContext},
+};
 
 /// A text editor
 #[derive(Parser, Debug)]
@@ -39,18 +48,25 @@ fn main() -> Result<(), String> {
 }
 
 fn text_to_surface(font: &Font, text: &String, color: Color) -> Result<Surface<'static>, String> {
-    font
-        .render(text)
-        .blended(color)
-        .map_err(|e| e.to_string())
+    font.render(text).blended(color).map_err(|e| e.to_string())
 }
 
-fn render_surface(texture_creator: &TextureCreator<WindowContext>, canvas: &mut Canvas<Window>, surface: Surface, x: i32, y: i32) -> Result<(), String> {
+fn render_surface(
+    texture_creator: &TextureCreator<WindowContext>,
+    canvas: &mut Canvas<Window>,
+    surface: Surface,
+    x: i32,
+    y: i32,
+) -> Result<(), String> {
     let texture = texture_creator
         .create_texture_from_surface(&surface)
         .map_err(|e| e.to_string())?;
 
-    canvas.copy(&texture, None, Some(Rect::new(x, y, surface.width(), surface.height())))
+    canvas.copy(
+        &texture,
+        None,
+        Some(Rect::new(x, y, surface.width(), surface.height())),
+    )
 }
 
 fn run(tab: Tab, config: Config) -> Result<(), String> {
@@ -74,10 +90,26 @@ fn run(tab: Tab, config: Config) -> Result<(), String> {
     canvas.set_draw_color(Color::RGB(16, 16, 16));
     canvas.clear();
 
-    for (line_n, line_txt) in tab.contents.replace('\t', " ".repeat(config.tab_size as usize).as_str()).replace('\r', "").split('\n').enumerate() {
+    for (line_n, line_txt) in tab
+        .contents
+        .replace('\t', " ".repeat(config.tab_size as usize).as_str())
+        .replace('\r', "")
+        .split('\n')
+        .enumerate()
+    {
         if line_txt.len() > 0 {
-            let surface = text_to_surface(&font, &line_txt.to_string(), Color::RGBA(255, 255, 255, 255))?;
-            render_surface(&texture_creator, &mut canvas, surface, 0, line_n as i32 * config.line_height)?;
+            let surface = text_to_surface(
+                &font,
+                &line_txt.to_string(),
+                Color::RGBA(255, 255, 255, 255),
+            )?;
+            render_surface(
+                &texture_creator,
+                &mut canvas,
+                surface,
+                0,
+                line_n as i32 * config.line_height,
+            )?;
         }
     }
 
