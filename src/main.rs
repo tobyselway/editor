@@ -14,6 +14,7 @@ struct Config {
     font_path: String,
     font_size: u16,
     line_height: i32,
+    tab_size: u16,
 }
 
 struct Tab {
@@ -27,6 +28,7 @@ fn main() -> Result<(), String> {
         font_path: "./fonts/ttf/JetBrainsMono-Regular.ttf".into(),
         font_size: 16,
         line_height: 24,
+        tab_size: 4,
     };
 
     let tab = Tab {
@@ -72,7 +74,7 @@ fn run(tab: Tab, config: Config) -> Result<(), String> {
     canvas.set_draw_color(Color::RGB(16, 16, 16));
     canvas.clear();
 
-    for (line_n, line_txt) in tab.contents.split('\n').enumerate() {
+    for (line_n, line_txt) in tab.contents.replace('\t', " ".repeat(config.tab_size as usize).as_str()).replace('\r', "").split('\n').enumerate() {
         if line_txt.len() > 0 {
             let surface = text_to_surface(&font, &line_txt.to_string(), Color::RGBA(255, 255, 255, 255))?;
             render_surface(&texture_creator, &mut canvas, surface, 0, line_n as i32 * config.line_height)?;
