@@ -1,7 +1,8 @@
-use std::time::Duration;
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use clap::Parser;
-use config::{Config, Configurable};
+use config::Config;
+use cursor::Cursor;
 use sdl2::{event::Event, keyboard::Keycode, pixels::Color};
 use tab::Tab;
 
@@ -22,19 +23,18 @@ struct Args {
 fn main() -> Result<(), String> {
     let args = Args::parse();
 
-    let config = Config::default();
+    let config = Rc::new(RefCell::new(Config::default()));
 
     let mut tabs: Vec<Tab> = vec![];
     let selected_tab: usize = 0;
 
-    let mut tab = Tab::from_file(args.path, &config)?;
-    tab.config(&config);
+    let tab = Tab::new(args.path, Cursor::new(config.clone()), config.clone())?;
     tabs.push(tab);
 
-    run(&mut tabs[selected_tab], &config)
+    run(&mut tabs[selected_tab], config.clone())
 }
 
-fn run(tab: &mut Tab, config: &Config) -> Result<(), String> {
+fn run(tab: &mut Tab, config: Rc<RefCell<Config>>) -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
@@ -48,7 +48,7 @@ fn run(tab: &mut Tab, config: &Config) -> Result<(), String> {
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
 
     // Load a font
-    let mut font = ttf_context.load_font(&config.font_path, config.font_size)?;
+    let mut font = ttf_context.load_font(&config.borrow().font_path, config.borrow().font_size)?;
     font.set_style(sdl2::ttf::FontStyle::NORMAL);
 
     fn char_idx_to_byte(str: &String, idx: usize) -> Result<usize, String> {
@@ -124,6 +124,18 @@ fn run(tab: &mut Tab, config: &Config) -> Result<(), String> {
                 } => {
                     let line = &mut tab.lines[tab.cursor.y as usize];
                     tab.cursor.x = line.chars().count() as u32;
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::F2),
+                    ..
+                } => {
+                    config.borrow_mut().line_height += 1;
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::F1),
+                    ..
+                } => {
+                    config.borrow_mut().line_height -= 1;
                 }
                 Event::TextInput { text, .. } => {
                     // println!("Input: \"{}\"", text);

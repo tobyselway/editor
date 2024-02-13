@@ -16,7 +16,3 @@ impl Default for Config {
         }
     }
 }
-
-pub trait Configurable {
-    fn config(&mut self, config: &Config);
-}

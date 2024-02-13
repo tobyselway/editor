@@ -1,9 +1,9 @@
-use std::fs;
+use std::{cell::RefCell, fs, rc::Rc};
 
 use sdl2::{pixels::Color, rect::Rect, render::Canvas, surface::Surface, ttf::Font, video::Window};
 
 use crate::{
-    config::{Config, Configurable},
+    config::Config,
     cursor::Cursor,
     render::Renderable,
 };
@@ -11,23 +11,22 @@ use crate::{
 pub struct Tab {
     pub lines: Vec<String>,
     pub cursor: Cursor,
-    config: Config,
+    config: Rc<RefCell<Config>>,
 }
 
-impl Default for Tab {
-    fn default() -> Self {
-        Self {
-            lines: vec![String::new()],
-            cursor: Cursor::default(),
-            config: Config::default(),
-        }
-    }
-}
-
-impl Configurable for Tab {
-    fn config(&mut self, config: &Config) {
-        self.config = config.clone();
-        self.cursor.config(config);
+impl Tab {
+    pub fn new(path: String, cursor: Cursor, config: Rc<RefCell<Config>>) -> Result<Self, String> {
+        Ok(Self {
+            lines: fs::read_to_string(path)
+                .map_err(|e| e.to_string())?
+                .replace('\t', " ".repeat(config.borrow().tab_size as usize).as_str())
+                .replace('\r', "")
+                .split('\n')
+                .map(str::to_string)
+                .collect(),
+            cursor,
+            config: config.clone(),
+        })
     }
 }
 
@@ -66,26 +65,11 @@ impl Renderable for Tab {
                     canvas,
                     surface,
                     0,
-                    line_n as i32 * self.config.line_height,
+                    line_n as i32 * self.config.borrow().line_height,
                 )?;
             }
         }
         self.cursor.render(canvas, font)?;
         Ok(())
-    }
-}
-
-impl Tab {
-    pub fn from_file(path: String, config: &Config) -> Result<Self, String> {
-        Ok(Self {
-            lines: fs::read_to_string(path)
-                .map_err(|e| e.to_string())?
-                .replace('\t', " ".repeat(config.tab_size as usize).as_str())
-                .replace('\r', "")
-                .split('\n')
-                .map(str::to_string)
-                .collect(),
-            ..Default::default()
-        })
     }
 }
