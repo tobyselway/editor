@@ -1,12 +1,8 @@
-use std::{cell::RefCell, fs, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use sdl2::{pixels::Color, rect::Rect, render::Canvas, surface::Surface, ttf::Font, video::Window};
 
-use crate::{
-    config::Config,
-    cursor::Cursor,
-    render::Renderable,
-};
+use crate::{config::Config, cursor::Cursor, file::ReadFile, render::Renderable};
 
 pub struct Tab {
     pub lines: Vec<String>,
@@ -15,15 +11,13 @@ pub struct Tab {
 }
 
 impl Tab {
-    pub fn new(path: String, cursor: Cursor, config: Rc<RefCell<Config>>) -> Result<Self, String> {
+    pub fn new(
+        file: impl ReadFile,
+        cursor: Cursor,
+        config: Rc<RefCell<Config>>,
+    ) -> Result<Self, String> {
         Ok(Self {
-            lines: fs::read_to_string(path)
-                .map_err(|e| e.to_string())?
-                .replace('\t', " ".repeat(config.borrow().tab_size as usize).as_str())
-                .replace('\r', "")
-                .split('\n')
-                .map(str::to_string)
-                .collect(),
+            lines: file.all_lines(),
             cursor,
             config: config.clone(),
         })

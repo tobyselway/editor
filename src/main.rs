@@ -3,6 +3,7 @@ use std::{cell::RefCell, rc::Rc, time::Duration};
 use clap::Parser;
 use config::Config;
 use cursor::Cursor;
+use file::LocalFile;
 use sdl2::{event::Event, keyboard::Keycode, pixels::Color};
 use tab::Tab;
 
@@ -10,6 +11,7 @@ use crate::render::Renderable;
 
 mod config;
 mod cursor;
+mod file;
 mod render;
 mod tab;
 
@@ -28,7 +30,11 @@ fn main() -> Result<(), String> {
     let mut tabs: Vec<Tab> = vec![];
     let selected_tab: usize = 0;
 
-    let tab = Tab::new(args.path, Cursor::new(config.clone()), config.clone())?;
+    let tab = Tab::new(
+        LocalFile::new(args.path, config.clone())?,
+        Cursor::new(config.clone()),
+        config.clone(),
+    )?;
     tabs.push(tab);
 
     run(&mut tabs[selected_tab], config.clone())
