@@ -30,6 +30,7 @@ fn main() -> Result<(), String> {
     let mut tabs: Vec<Tab> = vec![];
     let selected_tab: usize = 0;
 
+    // TODO: Look into some kind of Dependency Injection solution that can allow me to resolve these without having to manually pass them their deps (config, etc.)
     let tab = Tab::new(
         LocalFile::new(args.path, config.clone())?,
         Cursor::new(config.clone()),
@@ -46,7 +47,7 @@ fn run(tab: &mut Tab, config: Rc<RefCell<Config>>) -> Result<(), String> {
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
 
     let window = video_subsystem
-        .window("Editor", 800, 600)
+        .window("Editor", 800, 600) // TODO: Make resizable
         .opengl()
         .build()
         .map_err(|e| e.to_string())?;
@@ -58,9 +59,9 @@ fn run(tab: &mut Tab, config: Rc<RefCell<Config>>) -> Result<(), String> {
     font.set_style(sdl2::ttf::FontStyle::NORMAL);
 
     fn char_idx_to_byte(str: &String, idx: usize) -> Result<usize, String> {
-        // if idx <= str.len() {
-        //     return Ok(str.char_indices().count()); // TODO: Fix eol insertion & backspace
-        // }
+        if idx >= str.len() {
+            return Ok(str.char_indices().count());
+        }
         str.char_indices()
             .nth(idx)
             .ok_or("No valid char index found at cursor position".to_string())
@@ -80,6 +81,7 @@ fn run(tab: &mut Tab, config: Rc<RefCell<Config>>) -> Result<(), String> {
     }
 
     'mainloop: loop {
+        // TODO: Stop handling key events here, instead make them available to whatever may need to listen to them (e.g. cursor, etc.)
         for event in sdl_context.event_pump()?.poll_iter() {
             match event {
                 Event::KeyDown {
@@ -90,7 +92,11 @@ fn run(tab: &mut Tab, config: Rc<RefCell<Config>>) -> Result<(), String> {
                 Event::KeyDown {
                     keycode: Some(Keycode::Right),
                     ..
-                } => tab.cursor.x += 1,
+                } => {
+                    if (tab.cursor.x as usize) < tab.lines[tab.cursor.y as usize].len() {
+                        tab.cursor.x += 1;
+                    }
+                }
                 Event::KeyDown {
                     keycode: Some(Keycode::Left),
                     ..
@@ -98,15 +104,28 @@ fn run(tab: &mut Tab, config: Rc<RefCell<Config>>) -> Result<(), String> {
                 Event::KeyDown {
                     keycode: Some(Keycode::Up),
                     ..
-                } => tab.cursor.y -= 1,
+                } => {
+                    tab.cursor.y -= 1;
+                    if (tab.cursor.x as usize) > tab.lines[tab.cursor.y as usize].len() {
+                        tab.cursor.x = tab.lines[tab.cursor.y as usize].len() as u32;
+                    }
+                }
                 Event::KeyDown {
                     keycode: Some(Keycode::Down),
                     ..
-                } => tab.cursor.y += 1,
+                } => {
+                    tab.cursor.y += 1;
+                    if (tab.cursor.x as usize) > tab.lines[tab.cursor.y as usize].len() {
+                        tab.cursor.x = tab.lines[tab.cursor.y as usize].len() as u32;
+                    }
+                }
                 Event::KeyDown {
                     keycode: Some(Keycode::Backspace),
                     ..
                 } => {
+                    if tab.cursor.x <= 0 {
+                        break; // TODO: Remove line break
+                    }
                     let line = &mut tab.lines[tab.cursor.y as usize];
                     line.remove(char_idx_to_byte(&line, tab.cursor.x as usize - 1)?);
                     tab.cursor.x -= 1;
