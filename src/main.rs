@@ -100,11 +100,19 @@ fn run(tab: &mut Tab, config: Rc<RefCell<Config>>) -> Result<(), String> {
                 Event::KeyDown {
                     keycode: Some(Keycode::Left),
                     ..
-                } => tab.cursor.x -= 1,
+                } => {
+                    if tab.cursor.x <= 0 {
+                        break;
+                    }
+                    tab.cursor.x -= 1;
+                }
                 Event::KeyDown {
                     keycode: Some(Keycode::Up),
                     ..
                 } => {
+                    if tab.cursor.y <= 0 {
+                        break;
+                    }
                     tab.cursor.y -= 1;
                     if (tab.cursor.x as usize) > tab.lines[tab.cursor.y as usize].len() {
                         tab.cursor.x = tab.lines[tab.cursor.y as usize].len() as u32;
@@ -114,6 +122,9 @@ fn run(tab: &mut Tab, config: Rc<RefCell<Config>>) -> Result<(), String> {
                     keycode: Some(Keycode::Down),
                     ..
                 } => {
+                    if tab.cursor.y as usize >= tab.lines.len() - 1 {
+                        break;
+                    }
                     tab.cursor.y += 1;
                     if (tab.cursor.x as usize) > tab.lines[tab.cursor.y as usize].len() {
                         tab.cursor.x = tab.lines[tab.cursor.y as usize].len() as u32;
