@@ -1,5 +1,6 @@
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
+use bus::Bus;
 use clap::Parser;
 use config::Config;
 use cursor::Cursor;
@@ -7,13 +8,14 @@ use file::LocalFile;
 use sdl2::{event::Event, keyboard::Keycode, pixels::Color};
 use tab::Tab;
 
-use crate::render::Renderable;
+use crate::{lifecycle::Lifecycle, render::Renderable};
 
 mod config;
 mod cursor;
 mod file;
 mod render;
 mod tab;
+mod lifecycle;
 
 /// A text editor
 #[derive(Parser, Debug)]
@@ -27,6 +29,8 @@ fn main() -> Result<(), String> {
 
     let config = Rc::new(RefCell::new(Config::default()));
 
+    let mut event_bus: Bus<Event> = Bus::new(10);
+
     let mut tabs: Vec<Tab> = vec![];
     let selected_tab: usize = 0;
 
@@ -34,14 +38,15 @@ fn main() -> Result<(), String> {
     let tab = Tab::new(
         LocalFile::new(args.path, config.clone())?,
         Cursor::new(config.clone()),
+        event_bus.add_rx(),
         config.clone(),
     )?;
     tabs.push(tab);
 
-    run(&mut tabs[selected_tab], config.clone())
+    run(&mut tabs[selected_tab], event_bus, config.clone())
 }
 
-fn run(tab: &mut Tab, config: Rc<RefCell<Config>>) -> Result<(), String> {
+fn run(tab: &mut Tab, mut event_bus: Bus<Event>, config: Rc<RefCell<Config>>) -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
@@ -58,28 +63,6 @@ fn run(tab: &mut Tab, config: Rc<RefCell<Config>>) -> Result<(), String> {
     let mut font = ttf_context.load_font(&config.borrow().font_path, config.borrow().font_size)?;
     font.set_style(sdl2::ttf::FontStyle::NORMAL);
 
-    fn char_idx_to_byte(str: &String, idx: usize) -> Result<usize, String> {
-        if idx >= str.len() {
-            return Ok(str.char_indices().count());
-        }
-        str.char_indices()
-            .nth(idx)
-            .ok_or("No valid char index found at cursor position".to_string())
-            .map(|(byte_pos, _)| byte_pos)
-    }
-
-    fn type_text(
-        lines: &mut Vec<String>,
-        cursor_x: &mut u32,
-        cursor_y: &u32,
-        text: String,
-    ) -> Result<(), String> {
-        let line = &mut lines[*cursor_y as usize];
-        line.insert_str(char_idx_to_byte(&line, *cursor_x as usize)?, text.as_str());
-        *cursor_x += 1;
-        Ok(())
-    }
-
     'mainloop: loop {
         // TODO: Stop handling key events here, instead make them available to whatever may need to listen to them (e.g. cursor, etc.)
         for event in sdl_context.event_pump()?.poll_iter() {
@@ -89,111 +72,11 @@ fn run(tab: &mut Tab, config: Rc<RefCell<Config>>) -> Result<(), String> {
                     ..
                 }
                 | Event::Quit { .. } => break 'mainloop,
-                Event::KeyDown {
-                    keycode: Some(Keycode::Right),
-                    ..
-                } => {
-                    if (tab.cursor.x as usize) < tab.lines[tab.cursor.y as usize].len() {
-                        tab.cursor.x += 1;
-                    }
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Left),
-                    ..
-                } => {
-                    if tab.cursor.x <= 0 {
-                        break;
-                    }
-                    tab.cursor.x -= 1;
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Up),
-                    ..
-                } => {
-                    if tab.cursor.y <= 0 {
-                        break;
-                    }
-                    tab.cursor.y -= 1;
-                    if (tab.cursor.x as usize) > tab.lines[tab.cursor.y as usize].len() {
-                        tab.cursor.x = tab.lines[tab.cursor.y as usize].len() as u32;
-                    }
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Down),
-                    ..
-                } => {
-                    if tab.cursor.y as usize >= tab.lines.len() - 1 {
-                        break;
-                    }
-                    tab.cursor.y += 1;
-                    if (tab.cursor.x as usize) > tab.lines[tab.cursor.y as usize].len() {
-                        tab.cursor.x = tab.lines[tab.cursor.y as usize].len() as u32;
-                    }
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Backspace),
-                    ..
-                } => {
-                    if tab.cursor.x <= 0 {
-                        break; // TODO: Remove line break
-                    }
-                    let line = &mut tab.lines[tab.cursor.y as usize];
-                    line.remove(char_idx_to_byte(&line, tab.cursor.x as usize - 1)?);
-                    tab.cursor.x -= 1;
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Delete),
-                    ..
-                } => {
-                    let line = &mut tab.lines[tab.cursor.y as usize];
-                    line.remove(char_idx_to_byte(&line, tab.cursor.x as usize)?);
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Home),
-                    ..
-                } => {
-                    tab.cursor.x = 0;
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::End),
-                    ..
-                } => {
-                    let line = &mut tab.lines[tab.cursor.y as usize];
-                    tab.cursor.x = line.chars().count() as u32;
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::F2),
-                    ..
-                } => {
-                    config.borrow_mut().line_height += 1;
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::F1),
-                    ..
-                } => {
-                    config.borrow_mut().line_height -= 1;
-                }
-                Event::TextInput { text, .. } => {
-                    // println!("Input: \"{}\"", text);
-                    type_text(&mut tab.lines, &mut tab.cursor.x, &tab.cursor.y, text)?;
-                }
-                // Event::TextEditing {
-                //     text,
-                //     start,
-                //     length,
-                //     ..
-                // } => {
-                //     // TODO: Not sure what to do here
-                //     // This is primarily used for composing on CJK
-                //     // My current guess is I should just replace from (cursor_x + start) to (cursor_x + start + length) with text
-                //     // But I haven't gotten around to testing this with a Chinese, Japanese, or Korean keyboard layout yet
-
-                //     // println!("Editing: \"{}\" s: {}  l: {}", text, start, length);
-                //     // type_text(&mut tab.lines, &mut tab.cursor.x, &tab.cursor.y, text)?;
-                // }
-                _ => {}
+                _ => event_bus.broadcast(event),
             }
         }
+
+        tab.tick()?;
 
         canvas.set_draw_color(Color::RGB(16, 16, 16));
         canvas.clear();
